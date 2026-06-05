@@ -94,14 +94,19 @@ Tek tek hedefler için `make help`.
   disassembly ile doğrulandı) `FindClass("…/wrapper/PKCS11")` (**arayüz**) +
   `GetMethodID("isDisableBufferPreAllocation","()Z")` yapar. Bu metod eski
   **PKCS11 arayüzünde** yoktur → `jMethod==0` → `assert` (`pkcs11wrapper.h:490`)
-  → **SIGABRT** (kart takıp DEVAM deyince çöker). Build, metodu Javassist ile
-  **PKCS11 arayüzüne `abstract`** (+ `PKCS11Implementation`'a gövdeli) ekler
-  (`scripts/PreallocPatch.java`) ve yamalı sınıfları yükletip doğrular; sınıflar
-  değiştiği için jar imzası geçersizleşir, imza dosyaları (`META-INF/*.SF|RSA`)
-  silinir (app-image'de imza doğrulaması yok). Bu fix olmadan paket **hiçbir**
-  arm64 makinede imzalamaya ulaşamaz. (Notlar: yamayı yalnız impl sınıfına
-  eklemek yetmez — GetMethodID arayüzde yapılır; arayüze `default` eklemek de
-  yetmez — jar Java 7/major-51 olduğundan default metod `ClassFormatError` verir.)
+  → **SIGABRT** (kart takıp DEVAM deyince çöker). Ayrıca imzalama anında
+  (`C_SignInit`) modern wrapper, eski jar'da olmayan bazı `CK_*_PARAMS`
+  sınıflarını `FindClass`+`IsInstanceOf` ile arar → `NoClassDefFoundError`.
+  Build her ikisini de Javassist ile giderir (`scripts/PreallocPatch.java`):
+  **(A)** `isDisableBufferPreAllocation()`'ı PKCS11 arayüzüne `abstract` +
+  `PKCS11Implementation`'a gövdeli ekler; **(B)** eksik 11 `CK_*_PARAMS` sınıfını
+  boş public stub olarak ekler (imzalamada alan erişimi olmaz, IsInstanceOf false
+  döner). Sonra tüm sınıfları yükletip doğrular; sınıflar değiştiği için jar
+  imzası geçersizleşir, imza dosyaları (`META-INF/*.SF|RSA`) silinir (app-image'de
+  imza doğrulaması yok). Bu fix olmadan paket **hiçbir** arm64 makinede imzalamaya
+  ulaşamaz. (Notlar: yamayı yalnız impl'e eklemek yetmez — GetMethodID arayüzde
+  yapılır; arayüze `default` eklemek de yetmez — Java 7/major-51 default metodu
+  `ClassFormatError` ile reddeder, bu yüzden `abstract`.)
 - **codesign + Türkçe karakter:** `.app` adındaki `İ` gibi karakterler imzayı
   bozuyor; bu yüzden executable ASCII tutulur (`EDevletEImza`), görünen ad
   sonradan `CFBundleName`/`CFBundleDisplayName` ile Türkçe yapılır. Ad-hoc imza

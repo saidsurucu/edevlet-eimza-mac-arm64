@@ -27,13 +27,16 @@
 #   1) JWS (jnlp) doğrudan açılmıyor -> jpackage in-process JVM'li native launcher
 #   2) Java 8 arm64 Retina yok      -> Java 11 runtime gömülür
 #   3) all-permissions / kripto refl.-> gerekirse --add-opens (açılışta hata olursa)
-#   4) IAIK arm64 wrapper ↔ Java sınıfı sürüm tutarsızlığı (Apple Silicon connect çökmesi):
-#      jar'daki libs/macos/aarch64 wrapper MODERN IAIK; connect sırasında
-#      checkBufferPreAllocation -> FindClass("…/PKCS11") (ARAYÜZ) + GetMethodID(
-#      "isDisableBufferPreAllocation","()Z"). Eski PKCS11 arayüzünde bu metod YOK
-#      -> jMethod==0 -> SIGABRT. Çözüm: 'patch' adımı (Javassist) metodu PKCS11
-#      arayüzüne ABSTRACT (jar Java 7/major51 → default illegal) + impl'e gövdeli
-#      ekler ve yamalı sınıfları yükletip doğrular; bkz. scripts/PreallocPatch.java.
+#   4) IAIK arm64 wrapper ↔ Java sınıfı sürüm tutarsızlığı (jar'daki Java sınıfları
+#      Java 7/major51 ESKİ; libs/macos/aarch64 wrapper MODERN). İki belirti:
+#      (A) connect: checkBufferPreAllocation -> FindClass("…/PKCS11") (ARAYÜZ) +
+#          GetMethodID("isDisableBufferPreAllocation","()Z") -> arayüzde yok ->
+#          jMethod==0 -> SIGABRT. (B) C_SignInit: modern CK_*_PARAMS sınıflarını
+#          FindClass+IsInstanceOf ile arar -> eski jar'da olmayanlar ->
+#          NoClassDefFoundError. Çözüm: 'patch' adımı (Javassist) (A) için metodu
+#          PKCS11 arayüzüne ABSTRACT + impl'e gövdeli ekler, (B) için eksik 11
+#          param sınıfını boş stub olarak ekler ve hepsini yükletip doğrular;
+#          bkz. scripts/PreallocPatch.java.
 #   + ASCII executable adı (codesign Türkçe karakterle bozuluyor) + ad-hoc imza
 #
 set -euo pipefail
@@ -138,9 +141,9 @@ fetch_javassist() {
 	c_ok "Javassist doğrulandı"
 }
 
-# IAIK PKCS11 ARAYÜZÜNE (+ impl'e) eksik isDisableBufferPreAllocation() metodunu ekler.
-# Modern arm64 wrapper connect'te GetMethodID'yi FindClass("…/PKCS11") arayüzünde yapar;
-# metod orada yoksa SIGABRT. $1 = staged jar. İmza geçersizleşir → imza dosyaları silinir.
+# IAIK modern-wrapper uyumsuzluğunu giderir: (A) PKCS11 arayüzüne+impl'e
+# isDisableBufferPreAllocation() (connect SIGABRT), (B) eksik CK_*_PARAMS stub'ları
+# (C_SignInit NoClassDefFoundError). $1 = staged jar. İmza geçersizleşir → silinir.
 patch_jar() {  # $1 = jar yolu
 	local jar="$1"
 	[ -s "$jar" ] || die "patch: jar yok: $jar"
@@ -169,7 +172,7 @@ patch_jar() {  # $1 = jar yolu
 	# Doğrula: metod, wrapper'ın GetMethodID hedefi olan PKCS11 ARAYÜZÜNDE mi?
 	"$jph/bin/javap" -p -classpath "$jar" "$PATCH_VERIFY_FQCN" 2>/dev/null | grep -q "$PATCH_METHOD" \
 		|| die "patch doğrulanamadı: $PATCH_METHOD, $PATCH_VERIFY_FQCN içinde görünmüyor."
-	c_ok "Patch uygulandı + doğrulandı ($PATCH_METHOD → PKCS11 arayüzü + impl, imza temizlendi)"
+	c_ok "Patch uygulandı + doğrulandı (connect-fix + eksik CK_*_PARAMS sınıfları, imza temizlendi)"
 }
 
 # ----- Hedefler -----
