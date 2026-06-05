@@ -29,9 +29,10 @@
 #   3) all-permissions / kripto refl.-> gerekirse --add-opens (açılışta hata olursa)
 #   4) IAIK arm64 wrapper ↔ Java sınıfı sürüm tutarsızlığı (Apple Silicon connect çökmesi):
 #      jar'daki libs/macos/aarch64 wrapper MODERN IAIK; connect sırasında
-#      checkBufferPreAllocation, eski PKCS11Implementation sınıfında OLMAYAN
-#      isDisableBufferPreAllocation() metodunu arar -> jMethod==0 -> SIGABRT.
-#      Çözüm: 'patch' adımı (Javassist) bu metodu sınıfa ekler; bkz. scripts/PreallocPatch.java.
+#      checkBufferPreAllocation -> FindClass("…/PKCS11") (ARAYÜZ) + GetMethodID(
+#      "isDisableBufferPreAllocation","()Z"). Eski PKCS11 arayüzünde bu metod YOK
+#      -> jMethod==0 -> SIGABRT. Çözüm: 'patch' adımı (Javassist) metodu PKCS11
+#      arayüzüne default + impl'e ekler; bkz. scripts/PreallocPatch.java.
 #   + ASCII executable adı (codesign Türkçe karakterle bozuluyor) + ad-hoc imza
 #
 set -euo pipefail
@@ -70,8 +71,8 @@ JAVASSIST_URL="https://repo1.maven.org/maven2/org/javassist/javassist/${JAVASSIS
 JAVASSIST_SHA256="eba37290994b5e4868f3af98ff113f6244a6b099385d9ad46881307d3cb01aaf"
 JAVASSIST_JAR="$DOWNLOADS/javassist-${JAVASSIST_VER}.jar"
 PATCHER_SRC="$SCRIPT_DIR/PreallocPatch.java"
-PATCH_FQCN="iaik.pkcs.pkcs11.wrapper.PKCS11Implementation"
-PATCH_CLASS="iaik/pkcs/pkcs11/wrapper/PKCS11Implementation.class"
+# Wrapper GetMethodID'yi FindClass("…/PKCS11") (ARAYÜZ) üzerinde yapar → doğrulama hedefi arayüz.
+PATCH_VERIFY_FQCN="iaik.pkcs.pkcs11.wrapper.PKCS11"
 PATCH_METHOD="isDisableBufferPreAllocation"
 
 c_ok()   { printf '\033[32m✓\033[0m %s\n' "$*"; }
@@ -136,9 +137,9 @@ fetch_javassist() {
 	c_ok "Javassist doğrulandı"
 }
 
-# IAIK PKCS11Implementation sınıfına eksik isDisableBufferPreAllocation() metodunu ekler.
-# Apple Silicon'da modern arm64 wrapper'ın connect'te aradığı metod; yoksa SIGABRT.
-# $1 = patchlenecek (staged) jar. İmza geçersizleştiği için imza dosyaları silinir.
+# IAIK PKCS11 ARAYÜZÜNE (+ impl'e) eksik isDisableBufferPreAllocation() metodunu ekler.
+# Modern arm64 wrapper connect'te GetMethodID'yi FindClass("…/PKCS11") arayüzünde yapar;
+# metod orada yoksa SIGABRT. $1 = staged jar. İmza geçersizleşir → imza dosyaları silinir.
 patch_jar() {  # $1 = jar yolu
 	local jar="$1"
 	[ -s "$jar" ] || die "patch: jar yok: $jar"
@@ -153,16 +154,21 @@ patch_jar() {  # $1 = jar yolu
 		|| { rm -rf "$work"; die "patcher derlenemedi."; }
 	"$jph/bin/java" -cp "$JAVASSIST_JAR:$work" PreallocPatch "$jar" "$work/out" \
 		|| { rm -rf "$work"; die "patch çalışmadı."; }
-	# patchli .class'ı jar'a yaz
-	"$jph/bin/jar" uf "$jar" -C "$work/out" "$PATCH_CLASS" \
-		|| { rm -rf "$work"; die "jar güncellenemedi."; }
+	# patcher'ın yazdığı tüm patchli .class'ları (PKCS11 arayüzü + impl) jar'a yaz
+	local rel found=0
+	while IFS= read -r rel; do
+		"$jph/bin/jar" uf "$jar" -C "$work/out" "$rel" \
+			|| { rm -rf "$work"; die "jar güncellenemedi: $rel"; }
+		found=1
+	done < <(cd "$work/out" && find iaik -name '*.class' 2>/dev/null)
+	[ "$found" = 1 ] || { rm -rf "$work"; die "patcher hiç .class üretmedi."; }
 	# Sınıf değişti → imza tutmaz; imza dosyaları kalırsa classloader SecurityException atar.
 	zip -dq "$jar" 'META-INF/*.SF' 'META-INF/*.RSA' 'META-INF/*.DSA' >/dev/null 2>&1 || true
 	rm -rf "$work"
-	# Doğrula: metod gerçekten jar'da mı?
-	"$jph/bin/javap" -p -classpath "$jar" "$PATCH_FQCN" 2>/dev/null | grep -q "$PATCH_METHOD" \
-		|| die "patch doğrulanamadı: $PATCH_METHOD jar'da görünmüyor."
-	c_ok "Patch uygulandı + doğrulandı ($PATCH_METHOD eklendi, imza temizlendi)"
+	# Doğrula: metod, wrapper'ın GetMethodID hedefi olan PKCS11 ARAYÜZÜNDE mi?
+	"$jph/bin/javap" -p -classpath "$jar" "$PATCH_VERIFY_FQCN" 2>/dev/null | grep -q "$PATCH_METHOD" \
+		|| die "patch doğrulanamadı: $PATCH_METHOD, $PATCH_VERIFY_FQCN içinde görünmüyor."
+	c_ok "Patch uygulandı + doğrulandı ($PATCH_METHOD → PKCS11 arayüzü + impl, imza temizlendi)"
 }
 
 # ----- Hedefler -----

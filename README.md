@@ -90,13 +90,16 @@ Tek tek hedefler için `make help`.
 - **IAIK arm64 connect-fix (zorunlu yama):** jar, macOS için iki farklı çağdan
   IAIK native wrapper taşır — `libs/macos/intel/` **antik** (ppc/i386/x86_64,
   eski Java sınıflarıyla uyumlu) ve `libs/macos/aarch64/` **modern**. Apple
-  Silicon'da modern wrapper seçilir ve `connect` sırasında, eski
-  `PKCS11Implementation` sınıfında **bulunmayan** `isDisableBufferPreAllocation()`
-  metodunu `GetMethodID` ile arar → `jMethod==0` → `assert` → **SIGABRT** (kart
-  takıp DEVAM deyince çöker). Build, bu metodu Javassist ile sınıfa ekler
-  (`scripts/PreallocPatch.java`); sınıf değiştiği için jar imzası geçersizleşir,
+  Silicon'da modern wrapper seçilir ve `connect` sırasında (arm64 slice
+  disassembly ile doğrulandı) `FindClass("…/wrapper/PKCS11")` (**arayüz**) +
+  `GetMethodID("isDisableBufferPreAllocation","()Z")` yapar. Bu metod eski
+  **PKCS11 arayüzünde** yoktur → `jMethod==0` → `assert` (`pkcs11wrapper.h:490`)
+  → **SIGABRT** (kart takıp DEVAM deyince çöker). Build, metodu Javassist ile
+  **PKCS11 arayüzüne `default`** (+ `PKCS11Implementation`'a) ekler
+  (`scripts/PreallocPatch.java`); sınıflar değiştiği için jar imzası geçersizleşir,
   imza dosyaları (`META-INF/*.SF|RSA`) silinir (app-image'de imza doğrulaması
   yok). Bu fix olmadan paket **hiçbir** arm64 makinede imzalamaya ulaşamaz.
+  (Yamayı impl sınıfına eklemek tek başına yetmez; GetMethodID arayüzde yapılır.)
 - **codesign + Türkçe karakter:** `.app` adındaki `İ` gibi karakterler imzayı
   bozuyor; bu yüzden executable ASCII tutulur (`EDevletEImza`), görünen ad
   sonradan `CFBundleName`/`CFBundleDisplayName` ile Türkçe yapılır. Ad-hoc imza
