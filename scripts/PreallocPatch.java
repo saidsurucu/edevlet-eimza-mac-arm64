@@ -10,22 +10,32 @@ import javassist.*;
  *   IAIK wrapper native lib'i os.arch'a göre seçer:
  *     - Intel/Rosetta (x86_64) → antik intel wrapper → çalışır.
  *     - Apple Silicon (aarch64) → modern wrapper → connect sırasında
- *       checkBufferPreAllocation, Java tarafında isDisableBufferPreAllocation()
- *       metodunu GetMethodID ile arar. Bu metod eski PKCS11Implementation
- *       sınıfında YOK → jMethod==0 → assert → abort (SIGABRT).
+ *       checkBufferPreAllocation şunu yapar (arm64 slice disassembly ile doğrulandı):
+ *         FindClass(env, "iaik/pkcs/pkcs11/wrapper/PKCS11")              // <-- ARAYÜZ
+ *         GetMethodID(env, <o sınıf>, "isDisableBufferPreAllocation", "()Z")
+ *         assert(jMethod != 0)                                          // pkcs11wrapper.h:490
+ *       Metod eski PKCS11 ARAYÜZÜNDE yok → jMethod==0 → assert → abort (SIGABRT).
  *
  * ÇÖZÜM:
- *   Sınıfa eksik metodu ekle. true döndürür = "buffer ön-tahsisi kapalı" →
- *   modern wrapper, eski Java sınıflarının desteklediği legacy yola düşer.
+ *   Metodu PKCS11 ARAYÜZÜNE **default** olarak ekle (GetMethodID arayüzde bulur;
+ *   CallBooleanMethod impl örneğine dispatch eder). Dispatch'i kesinleştirmek için
+ *   PKCS11Implementation'a da ekle. true döndürür = "ön-tahsis kapalı" → legacy yol.
+ *
+ *   NOT: Metod IMPL sınıfına eklemek TEK BAŞINA YETMEZ; wrapper GetMethodID'yi
+ *   FindClass("...PKCS11") (arayüz) üzerinde yapar. Asıl hedef arayüzdür.
  *
  * Kullanım:  java -cp javassist.jar:. PreallocPatch <jar> <çıktı-dizini>
  *   args[0] = patchlenecek jar (içeriği okunur)
- *   args[1] = patchli .class'ın yazılacağı kök dizin (iaik/.../X.class ağacı oluşur)
+ *   args[1] = patchli .class'ların yazılacağı kök dizin (iaik/.../X.class ağacı oluşur)
  *
- * Idempotent: metod zaten varsa hiçbir şey yapmaz.
+ * Idempotent: metod zaten varsa o sınıf atlanır.
  */
 public class PreallocPatch {
-    static final String CLS  = "iaik.pkcs.pkcs11.wrapper.PKCS11Implementation";
+    // Sıra önemli: arayüz asıl hedef (GetMethodID burada), impl dispatch için.
+    static final String[] CLASSES = {
+        "iaik.pkcs.pkcs11.wrapper.PKCS11",                // arayüz — GetMethodID hedefi
+        "iaik.pkcs.pkcs11.wrapper.PKCS11Implementation"   // impl   — sanal dispatch
+    };
     static final String METH = "isDisableBufferPreAllocation";
 
     public static void main(String[] args) throws Exception {
@@ -35,18 +45,23 @@ public class PreallocPatch {
         }
         ClassPool pool = new ClassPool(true);
         pool.insertClassPath(args[0]);
-        CtClass cc = pool.get(CLS);
-        if (cc.isFrozen()) cc.defrost();
-
-        for (CtMethod m : cc.getDeclaredMethods()) {
-            if (m.getName().equals(METH)) {
-                System.out.println("[patch] " + METH + "() zaten var — atlandı");
-                return;
+        for (String cn : CLASSES) {
+            CtClass cc = pool.get(cn);
+            if (cc.isFrozen()) cc.defrost();
+            boolean exists = false;
+            for (CtMethod m : cc.getDeclaredMethods()) {
+                if (m.getName().equals(METH)) { exists = true; break; }
             }
+            if (exists) {
+                System.out.println("[patch] " + cn + ": " + METH + "() zaten var — atlandı");
+                continue;
+            }
+            // Gövdeli + non-abstract metod: arayüzde otomatik 'default' olur.
+            cc.addMethod(CtNewMethod.make(
+                "public boolean " + METH + "() { return true; }", cc));
+            cc.writeFile(args[1]);
+            System.out.println("[patch] " + cn + ": " + METH + "() eklendi"
+                + (cc.isInterface() ? " (default)" : ""));
         }
-        cc.addMethod(CtNewMethod.make(
-            "public boolean " + METH + "() { return true; }", cc));
-        cc.writeFile(args[1]);
-        System.out.println("[patch] " + METH + "() eklendi -> " + CLS);
     }
 }
