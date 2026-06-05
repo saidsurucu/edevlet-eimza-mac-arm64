@@ -60,10 +60,6 @@ en azından `arm64`) yazmalı — sadece `x86_64` yazıyorsa hâlâ Intel sürü
 lipo -archs /usr/local/lib/libakisp11.dylib
 ```
 
-> Neden gömmüyoruz? `libakisp11.dylib`, TÜBİTAK BİLGEM'in tescilli middleware'idir;
-> `.app` içine gömüp yeniden dağıtmak lisans açısından uygun değildir. Ayrıca resmî
-> kurulum, AKİS güncellemelerini (kart/güvenlik) almanızı sağlar.
-
 ---
 
 ## Derleme (geliştirici)
