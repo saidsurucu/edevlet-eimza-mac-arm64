@@ -27,6 +27,11 @@
 #   1) JWS (jnlp) doğrudan açılmıyor -> jpackage in-process JVM'li native launcher
 #   2) Java 8 arm64 Retina yok      -> Java 11 runtime gömülür
 #   3) all-permissions / kripto refl.-> gerekirse --add-opens (açılışta hata olursa)
+#   4) IAIK arm64 wrapper ↔ Java sınıfı sürüm tutarsızlığı (Apple Silicon connect çökmesi):
+#      jar'daki libs/macos/aarch64 wrapper MODERN IAIK; connect sırasında
+#      checkBufferPreAllocation, eski PKCS11Implementation sınıfında OLMAYAN
+#      isDisableBufferPreAllocation() metodunu arar -> jMethod==0 -> SIGABRT.
+#      Çözüm: 'patch' adımı (Javassist) bu metodu sınıfa ekler; bkz. scripts/PreallocPatch.java.
 #   + ASCII executable adı (codesign Türkçe karakterle bozuluyor) + ad-hoc imza
 #
 set -euo pipefail
@@ -57,6 +62,17 @@ ICNS="$BUILD/EDevletEImza.icns"
 JDK11_DEST="$HOME/Library/Java/JavaVirtualMachines/zulu-11-arm64.jdk"
 # jpackage için 17+ JDK. 'jpackage-jdk' Zulu 21 kurar.
 JDK21_DEST="$HOME/Library/Java/JavaVirtualMachines/zulu-21-arm64.jdk"
+
+# IAIK arm64 connect-çökmesi patch'i (bkz. üstteki engel #4 + scripts/PreallocPatch.java).
+# Eksik metodu bytecode'a eklemek için Javassist gerekir; sürüm + sha256 pinli.
+JAVASSIST_VER="3.30.2-GA"
+JAVASSIST_URL="https://repo1.maven.org/maven2/org/javassist/javassist/${JAVASSIST_VER}/javassist-${JAVASSIST_VER}.jar"
+JAVASSIST_SHA256="eba37290994b5e4868f3af98ff113f6244a6b099385d9ad46881307d3cb01aaf"
+JAVASSIST_JAR="$DOWNLOADS/javassist-${JAVASSIST_VER}.jar"
+PATCHER_SRC="$SCRIPT_DIR/PreallocPatch.java"
+PATCH_FQCN="iaik.pkcs.pkcs11.wrapper.PKCS11Implementation"
+PATCH_CLASS="iaik/pkcs/pkcs11/wrapper/PKCS11Implementation.class"
+PATCH_METHOD="isDisableBufferPreAllocation"
 
 c_ok()   { printf '\033[32m✓\033[0m %s\n' "$*"; }
 c_info() { printf '\033[36m▸\033[0m %s\n' "$*"; }
@@ -101,12 +117,60 @@ install_zulu() {  # $1=java_version  $2=hedef .jdk
 	mkdir -p "$(dirname "$2")"; rm -rf "$2"; mv "$b" "$2"; rm -rf "$stage"
 }
 
+# jpackage'lı JDK'nın kök dizini (javac/jar/javap patch için lazım)
+jpackage_home() {
+	local jp; jp="$(find_jpackage)" || return 1
+	echo "${jp%/bin/jpackage}"
+}
+
+# Javassist'i (sürüm + sha256 pinli) önbelleğe indirir/doğrular.
+fetch_javassist() {
+	if [ -s "$JAVASSIST_JAR" ] && shasum -a 256 "$JAVASSIST_JAR" | grep -q "$JAVASSIST_SHA256"; then
+		c_ok "Javassist önbellekten (checksum OK)"; return 0
+	fi
+	c_info "Javassist $JAVASSIST_VER indiriliyor…"
+	mkdir -p "$DOWNLOADS"
+	curl -fL --retry 3 -o "$JAVASSIST_JAR" "$JAVASSIST_URL"
+	shasum -a 256 "$JAVASSIST_JAR" | grep -q "$JAVASSIST_SHA256" \
+		|| die "Javassist checksum uyuşmadı (beklenen $JAVASSIST_SHA256)."
+	c_ok "Javassist doğrulandı"
+}
+
+# IAIK PKCS11Implementation sınıfına eksik isDisableBufferPreAllocation() metodunu ekler.
+# Apple Silicon'da modern arm64 wrapper'ın connect'te aradığı metod; yoksa SIGABRT.
+# $1 = patchlenecek (staged) jar. İmza geçersizleştiği için imza dosyaları silinir.
+patch_jar() {  # $1 = jar yolu
+	local jar="$1"
+	[ -s "$jar" ] || die "patch: jar yok: $jar"
+	local jph; jph="$(jpackage_home)" || die "patch için jpackage'lı JDK yok → scripts/build.sh jpackage-jdk"
+	[ -x "$jph/bin/javac" ] || die "javac bulunamadı: $jph/bin"
+	[ -f "$PATCHER_SRC" ]   || die "patcher kaynağı yok: $PATCHER_SRC"
+	fetch_javassist
+
+	c_info "IAIK arm64 connect-fix uygulanıyor ($PATCH_METHOD)…"
+	local work; work="$(mktemp -d)"
+	"$jph/bin/javac" -cp "$JAVASSIST_JAR" -d "$work" "$PATCHER_SRC" \
+		|| { rm -rf "$work"; die "patcher derlenemedi."; }
+	"$jph/bin/java" -cp "$JAVASSIST_JAR:$work" PreallocPatch "$jar" "$work/out" \
+		|| { rm -rf "$work"; die "patch çalışmadı."; }
+	# patchli .class'ı jar'a yaz
+	"$jph/bin/jar" uf "$jar" -C "$work/out" "$PATCH_CLASS" \
+		|| { rm -rf "$work"; die "jar güncellenemedi."; }
+	# Sınıf değişti → imza tutmaz; imza dosyaları kalırsa classloader SecurityException atar.
+	zip -dq "$jar" 'META-INF/*.SF' 'META-INF/*.RSA' 'META-INF/*.DSA' >/dev/null 2>&1 || true
+	rm -rf "$work"
+	# Doğrula: metod gerçekten jar'da mı?
+	"$jph/bin/javap" -p -classpath "$jar" "$PATCH_FQCN" 2>/dev/null | grep -q "$PATCH_METHOD" \
+		|| die "patch doğrulanamadı: $PATCH_METHOD jar'da görünmüyor."
+	c_ok "Patch uygulandı + doğrulandı ($PATCH_METHOD eklendi, imza temizlendi)"
+}
+
 # ----- Hedefler -----
 
 check_deps() {
 	c_info "Ön koşullar denetleniyor…"
 	local t
-	for t in curl unzip codesign plutil sips iconutil; do
+	for t in curl unzip zip codesign plutil sips iconutil shasum; do
 		command -v "$t" >/dev/null 2>&1 || die "Gerekli araç yok: $t"
 	done
 	c_ok "Araçlar mevcut"
@@ -175,6 +239,9 @@ package() {
 	c_info "jpackage girdisi hazırlanıyor…"
 	local in="$BUILD/_input"; rm -rf "$in"; mkdir -p "$in"
 	cp "$JAR_FILE" "$in/"
+	# Apple Silicon connect-çökmesi düzeltmesi (IAIK arm64 wrapper ↔ Java sınıfı uyumsuzluğu).
+	# Pristine downloads/ kopyasına değil, staged kopyaya uygulanır.
+	patch_jar "$in/$MAIN_JAR"
 
 	c_info "jpackage ile .app paketleniyor (Java 11 gömülü, v$APP_VERSION)…"
 	rm -rf "$APP" "$BUILD/$ASCII_NAME.app"
@@ -234,7 +301,7 @@ Hedefler:
   jpackage-jdk jpackage'lı 17+ JDK yoksa Azul Zulu 21 kur
   download     elektronik-imza.jar + ikon indir + doğrula
   icns         .icns ikon üret
-  package      jpackage ile .app üret (Java 11 gömülü)
+  package      jpackage ile .app üret (Java 11 gömülü + IAIK arm64 connect-fix)
   sign         ad-hoc codesign
   run          üretilen .app'i aç
   clean / distclean
