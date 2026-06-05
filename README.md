@@ -85,8 +85,18 @@ Tek tek hedefler için `make help`.
 - **Kart erişimi:** `javax.smartcardio` değil, **IAIK PKCS#11 wrapper** iledir.
   arm64 native kütüphane jar'ın içinde gömülü ve universal'dır:
   `libs/macos/aarch64/libpkcs11wrapper.jnilib` = Mach-O universal (x86_64 +
-  arm64). Wrapper `os.arch`'a göre arm64'ü seçer → native çalışır. (UDE'deki
-  gibi bir native-swap gerekmez.)
+  arm64). Wrapper `os.arch`'a göre arm64'ü seçer. (UDE'deki gibi bir
+  native-swap gerekmez.)
+- **IAIK arm64 connect-fix (zorunlu yama):** jar, macOS için iki farklı çağdan
+  IAIK native wrapper taşır — `libs/macos/intel/` **antik** (ppc/i386/x86_64,
+  eski Java sınıflarıyla uyumlu) ve `libs/macos/aarch64/` **modern**. Apple
+  Silicon'da modern wrapper seçilir ve `connect` sırasında, eski
+  `PKCS11Implementation` sınıfında **bulunmayan** `isDisableBufferPreAllocation()`
+  metodunu `GetMethodID` ile arar → `jMethod==0` → `assert` → **SIGABRT** (kart
+  takıp DEVAM deyince çöker). Build, bu metodu Javassist ile sınıfa ekler
+  (`scripts/PreallocPatch.java`); sınıf değiştiği için jar imzası geçersizleşir,
+  imza dosyaları (`META-INF/*.SF|RSA`) silinir (app-image'de imza doğrulaması
+  yok). Bu fix olmadan paket **hiçbir** arm64 makinede imzalamaya ulaşamaz.
 - **codesign + Türkçe karakter:** `.app` adındaki `İ` gibi karakterler imzayı
   bozuyor; bu yüzden executable ASCII tutulur (`EDevletEImza`), görünen ad
   sonradan `CFBundleName`/`CFBundleDisplayName` ile Türkçe yapılır. Ad-hoc imza
