@@ -9,9 +9,9 @@ arm64 Java 11 runtime'ı** ile **çift tıklayıp açabileceğiniz native bir
 > Resmî değildir; hiçbir kamu kurumu tarafından geliştirilmemiş/onaylanmamıştır.
 > "Olduğu gibi" sunulur.
 
-> ⚠️ **E-imza:** Uygulama açılıyor ve kart seçim ekranı (Retina'da keskin)
-> sorunsuz geliyor; PKCS#11 katmanı yükleniyor (kart tipi listesinde "TÜBİTAK
-> AKİS" görünüyor). **Tam imzalama akışı gerçek kartla doğrulanmalıdır.**
+> ⚠️ **E-imza için arm64 AKİS sürücüsü ŞART** (aşağıdaki adım 4). Uygulama
+> native arm64'tür; kart sürücünüz de arm64 olmalıdır, yoksa kart işlemleri
+> sırasında `libakisp11.dylib … yüklenemedi` hatası alırsınız.
 
 ---
 
@@ -27,9 +27,42 @@ arm64 Java 11 runtime'ı** ile **çift tıklayıp açabileceğiniz native bir
    xattr -dr com.apple.quarantine "/Applications/E-Devlet E-İmza.app"
    ```
    Komut bir şey yazmadan biter (normaldir). Artık çift tıklayarak açabilirsiniz.
+4. **Apple Silicon (arm64) AKİS kart sürücüsünü kurun** — aşağıdaki bölüme bakın.
 
-Kart işlemleri için sistemde **arm64 PKCS#11 token middleware** (TÜBİTAK AKİS
-vb.) kurulu olmalıdır.
+---
+
+## ⚠️ Apple Silicon (arm64) AKİS sürücüsü kurulumu (zorunlu)
+
+Bu uygulama native arm64 çalışır. Kart erişimi, sistemdeki AKİS PKCS#11 modülünü
+(`/usr/local/lib/libakisp11.dylib`) yükleyerek olur. **Bir arm64 uygulama, yalnızca
+Intel (x86_64) derlenmiş bir sürücüyü yükleyemez** (mimari uyuşmazlığı). TÜBİTAK
+AKİS'in macOS için **ayrı Intel ve Apple Silicon paketleri** vardır; çoğu kullanıcıda
+eski/Intel sürüm kuruludur.
+
+**Belirti:** Kart tipi olarak "Tubitak AKİS" seçip DEVAM'a basınca:
+
+> `/usr/local/lib/libakisp11.dylib kütüphanesi yüklenemedi. Lütfen doğru kart
+> tipini seçtiğinize ve akıllı kartınıza ait kurulumların doğru yapıldığına emin olun.`
+
+**Çözüm:** Apple Silicon AKİS paketini kurun:
+
+1. [TÜBİTAK BİLGEM AKİS — Destek/İndirme](https://akiskart.bilgem.tubitak.gov.tr/tr/destek/)
+   sayfasından **"Mac OS Arm (Apple Silicon)"** başlığı altındaki güncel paketi indirin
+   (ör. `Akia_macos_arm_6_8_9.pkg`). **"Mac OS Intel" paketini değil**, Arm paketini seçin.
+2. İndirilen `.pkg`'a çift tıklayıp kurulumu tamamlayın (yönetici şifresi ister).
+3. **E-Devlet E-İmza** uygulamasını kapatıp yeniden açın; kart takılıyken
+   "Kart Tipi: Tubitak AKİS" → DEVAM.
+
+**Doğru sürümü kurduğunuzu teyit:** Terminal'de şu komut **`x86_64 arm64`** (veya
+en azından `arm64`) yazmalı — sadece `x86_64` yazıyorsa hâlâ Intel sürüm kuruludur:
+
+```
+lipo -archs /usr/local/lib/libakisp11.dylib
+```
+
+> Neden gömmüyoruz? `libakisp11.dylib`, TÜBİTAK BİLGEM'in tescilli middleware'idir;
+> `.app` içine gömüp yeniden dağıtmak lisans açısından uygun değildir. Ayrıca resmî
+> kurulum, AKİS güncellemelerini (kart/güvenlik) almanızı sağlar.
 
 ---
 
