@@ -9,6 +9,10 @@ arm64 Java 11 runtime'ı** ile **çift tıklayıp açabileceğiniz native bir
 > Resmî değildir; hiçbir kamu kurumu tarafından geliştirilmemiş/onaylanmamıştır.
 > "Olduğu gibi" sunulur.
 
+> ✅ Apple Silicon'da **gerçek kartla tam imzalama** (sertifika → PIN → imza →
+> UYAP girişi) doğrulandı. (Tek bir kurulumda test edildi; yine de farklı
+> kart/sürücü sürümlerinde değişiklik olabilir.)
+
 > ⚠️ **E-imza için arm64 AKİS sürücüsü ŞART** (aşağıdaki adım 4). Uygulama
 > native arm64'tür; kart sürücünüz de arm64 olmalıdır, yoksa kart işlemleri
 > sırasında `libakisp11.dylib … yüklenemedi` hatası alırsınız.

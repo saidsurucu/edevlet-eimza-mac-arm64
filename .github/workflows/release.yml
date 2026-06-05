@@ -94,6 +94,9 @@ jobs:
                3. Komut bir şey yazmadan biter (normaldir). Artık uygulamayı çift tıklayarak açabilirsiniz.
 
             ## Not
-            - E-imza için sistemde ayrıca **arm64 PKCS#11 token middleware** (TÜBİTAK AKİS vb.) kurulu olmalıdır.
-            - Kart erişimi IAIK PKCS#11 wrapper iledir; arm64 native kütüphane uygulamaya gömülüdür.
-            - ⚠️ Kart algılama açılış ekranında çalışır; tam imzalama akışı gerçek kartla doğrulanmalıdır.
+            - ⚠️ **arm64 AKİS sürücüsü ŞART:** sistemde **Apple Silicon (arm64) AKİS** PKCS#11
+              modülü kurulu olmalıdır (Intel-only sürücü arm64 uygulamaya yüklenmez). Kurulum
+              için README'deki "Apple Silicon AKİS sürücüsü kurulumu" bölümüne bakın.
+            - ✅ Apple Silicon'da gerçek kartla **tam imzalama** (sertifika → PIN → imza → UYAP
+              girişi) doğrulandı. Kart erişimi IAIK PKCS#11 wrapper iledir; arm64 native kütüphane
+              uygulamaya gömülüdür.
