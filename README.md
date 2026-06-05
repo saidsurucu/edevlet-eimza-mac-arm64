@@ -95,11 +95,13 @@ Tek tek hedefler için `make help`.
   `GetMethodID("isDisableBufferPreAllocation","()Z")` yapar. Bu metod eski
   **PKCS11 arayüzünde** yoktur → `jMethod==0` → `assert` (`pkcs11wrapper.h:490`)
   → **SIGABRT** (kart takıp DEVAM deyince çöker). Build, metodu Javassist ile
-  **PKCS11 arayüzüne `default`** (+ `PKCS11Implementation`'a) ekler
-  (`scripts/PreallocPatch.java`); sınıflar değiştiği için jar imzası geçersizleşir,
-  imza dosyaları (`META-INF/*.SF|RSA`) silinir (app-image'de imza doğrulaması
-  yok). Bu fix olmadan paket **hiçbir** arm64 makinede imzalamaya ulaşamaz.
-  (Yamayı impl sınıfına eklemek tek başına yetmez; GetMethodID arayüzde yapılır.)
+  **PKCS11 arayüzüne `abstract`** (+ `PKCS11Implementation`'a gövdeli) ekler
+  (`scripts/PreallocPatch.java`) ve yamalı sınıfları yükletip doğrular; sınıflar
+  değiştiği için jar imzası geçersizleşir, imza dosyaları (`META-INF/*.SF|RSA`)
+  silinir (app-image'de imza doğrulaması yok). Bu fix olmadan paket **hiçbir**
+  arm64 makinede imzalamaya ulaşamaz. (Notlar: yamayı yalnız impl sınıfına
+  eklemek yetmez — GetMethodID arayüzde yapılır; arayüze `default` eklemek de
+  yetmez — jar Java 7/major-51 olduğundan default metod `ClassFormatError` verir.)
 - **codesign + Türkçe karakter:** `.app` adındaki `İ` gibi karakterler imzayı
   bozuyor; bu yüzden executable ASCII tutulur (`EDevletEImza`), görünen ad
   sonradan `CFBundleName`/`CFBundleDisplayName` ile Türkçe yapılır. Ad-hoc imza

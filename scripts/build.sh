@@ -32,7 +32,8 @@
 #      checkBufferPreAllocation -> FindClass("…/PKCS11") (ARAYÜZ) + GetMethodID(
 #      "isDisableBufferPreAllocation","()Z"). Eski PKCS11 arayüzünde bu metod YOK
 #      -> jMethod==0 -> SIGABRT. Çözüm: 'patch' adımı (Javassist) metodu PKCS11
-#      arayüzüne default + impl'e ekler; bkz. scripts/PreallocPatch.java.
+#      arayüzüne ABSTRACT (jar Java 7/major51 → default illegal) + impl'e gövdeli
+#      ekler ve yamalı sınıfları yükletip doğrular; bkz. scripts/PreallocPatch.java.
 #   + ASCII executable adı (codesign Türkçe karakterle bozuluyor) + ad-hoc imza
 #
 set -euo pipefail
