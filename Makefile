@@ -3,7 +3,7 @@
 
 SH := bash scripts/build.sh
 
-.PHONY: all check-deps jdk jpackage-jdk download icns package sign run clean distclean help
+.PHONY: all check-deps jdk jpackage-jdk download icns package sign run assets dmg clean distclean help
 
 all: ## ARM64 .app'i üret (varsayılan)
 	@$(SH) all
@@ -31,6 +31,12 @@ sign: ## ad-hoc codesign
 
 run: ## üretilen .app'i aç
 	@$(SH) run
+
+assets: ## DMG arka planını assets/dmg-background.svg'den üret
+	@$(SH) assets
+
+dmg: ## sürükle-bırak yerleşimli .dmg üret (create-dmg gerekir)
+	@$(SH) dmg
 
 clean: ## build/ sil (indirilenleri korur)
 	@$(SH) clean

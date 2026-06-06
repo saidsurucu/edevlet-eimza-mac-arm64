@@ -65,26 +65,27 @@ jobs:
           echo "Yayın etiketi: $TAG"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-      - name: .app'i zip'le (ditto — imza/symlink korunur)
+      - name: DMG üret (sürükle-bırak yerleşimli)
+        env:
+          DMG_OUT: ${{ github.workspace }}/EDevletEImza-${{ steps.ver.outputs.tag }}-arm64.dmg
         run: |
-          cd build
-          ditto -c -k --sequesterRsrc --keepParent \
-            "E-Devlet E-İmza.app" \
-            "$GITHUB_WORKSPACE/EDevletEImza-${{ steps.ver.outputs.tag }}-arm64.zip"
+          brew list create-dmg >/dev/null 2>&1 || brew install create-dmg
+          make dmg
 
       - name: GitHub Release oluştur + dosyayı ekle
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.ver.outputs.tag }}
           name: ${{ steps.ver.outputs.tag }}
-          files: EDevletEImza-${{ steps.ver.outputs.tag }}-arm64.zip
+          files: EDevletEImza-${{ steps.ver.outputs.tag }}-arm64.dmg
           body: |
             Native Apple Silicon (arm64) e-Devlet E-İmza build — Rosetta gerektirmez.
             Java gömülü gelir; ayrıca bir şey kurmaya gerek yok.
 
             ## Kurulum
-            1. Aşağıdaki **zip'i indirip** çift tıklayarak **açın** (içinden `E-Devlet E-İmza.app` çıkar).
-            2. Çıkan uygulamayı **Uygulamalar (Applications) klasörüne sürükleyin**.
+            1. Aşağıdaki **`.dmg` dosyasını indirip** çift tıklayın; bir pencere açılır.
+            2. Açılan pencerede **`E-Devlet E-İmza`** simgesini, ortadaki okun gösterdiği gibi
+               yanındaki **Applications** klasörünün üzerine **sürükleyin**.
             3. İlk açılışta macOS **"geliştirici doğrulanamadı"** diyebilir. Bunu bir kez aşmak için:
                1. **Terminal** uygulamasını açın: `Command (⌘) + Boşluk`'a basın, **Terminal** yazıp **Enter**'a basın.
                2. Şu satırı kopyalayın, Terminal'e yapıştırıp **Enter**'a basın:

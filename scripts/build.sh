@@ -288,6 +288,48 @@ run() {
 	open "$APP"
 }
 
+# DMG arka planını assets/dmg-background.svg'den üretir: 1x + 2x PNG → HiDPI tiff.
+# (rsvg-convert: brew install librsvg ; tiffutil: macOS yerleşik)
+assets() {
+	local svg="$ROOT/assets/dmg-background.svg"
+	[ -f "$svg" ] || die "Kaynak yok: $svg"
+	command -v rsvg-convert >/dev/null || die "rsvg-convert yok → brew install librsvg"
+	command -v tiffutil >/dev/null || die "tiffutil yok (macOS yerleşik olmalı)"
+	c_info "DMG arka planı üretiliyor (svg → png 1x/2x → tiff)…"
+	rsvg-convert -w 660  -h 440 "$svg" -o "$ROOT/assets/dmg-background.png"
+	rsvg-convert -w 1320 -h 880 "$svg" -o "$ROOT/assets/dmg-background@2x.png"
+	tiffutil -cathidpicheck "$ROOT/assets/dmg-background.png" "$ROOT/assets/dmg-background@2x.png" \
+		-out "$ROOT/assets/dmg-background.tiff" >/dev/null
+	c_ok "Arka plan: assets/dmg-background.tiff"
+}
+
+# Sürükle-bırak yerleşimli .dmg üret (arka plan: assets/dmg-background.tiff).
+# İkon konumları arka plandaki boş yuvalarla eşleşir: uygulama (170,220), Applications (490,220).
+# DMG_OUT ile çıktı yolu özelleştirilebilir (CI sürüm etiketli ad verir).
+dmg() {
+	[ -d "$APP" ] || die "Önce 'package' (+ 'sign') çalıştır."
+	command -v create-dmg >/dev/null || die "create-dmg yok → brew install create-dmg"
+	local bg="$ROOT/assets/dmg-background.tiff"
+	[ -f "$bg" ] || assets
+	local out="${DMG_OUT:-$BUILD/$ASCII_NAME-arm64.dmg}"
+	rm -f "$out"
+	c_info "DMG üretiliyor (sürükle-bırak yerleşimi)…"
+	create-dmg \
+		--volname "$APP_NAME" \
+		--background "$bg" \
+		--window-pos 200 120 \
+		--window-size 660 440 \
+		--icon-size 120 \
+		--icon "$APP_NAME.app" 170 220 \
+		--app-drop-link 490 220 \
+		--hide-extension "$APP_NAME.app" \
+		--no-internet-enable \
+		"$out" "$APP" \
+		|| die "create-dmg başarısız."
+	[ -f "$out" ] || die "DMG üretilemedi."
+	c_ok "DMG: $out ($(du -sh "$out" | cut -f1))"
+}
+
 all() {
 	check_deps || die "Ön koşul eksik (jdk / jpackage-jdk)."
 	download; icns; package; sign
@@ -314,6 +356,8 @@ Hedefler:
   package      jpackage ile .app üret (Java 11 gömülü + IAIK arm64 connect-fix)
   sign         ad-hoc codesign
   run          üretilen .app'i aç
+  assets       DMG arka planını svg'den üret (rsvg-convert + tiffutil)
+  dmg          sürükle-bırak yerleşimli .dmg üret (create-dmg; DMG_OUT ile ad)
   clean / distclean
 
 Ortam: JAR_URL / ICON_URL (kaynak), APP_VERSION (vars: $APP_VERSION)
@@ -323,6 +367,7 @@ EOF
 case "${1:-all}" in
 	all) all ;; check-deps) check_deps ;; jdk) jdk ;; jpackage-jdk) jpackage_jdk ;;
 	download) download ;; icns) icns ;; package) package ;; sign) sign ;; run) run ;;
+	assets) assets ;; dmg) dmg ;;
 	clean) clean ;; distclean) distclean ;;
 	help|-h|--help) help ;;
 	*) die "Bilinmeyen hedef: $1  (scripts/build.sh help)" ;;

@@ -21,9 +21,10 @@ arm64 Java 11 runtime'ı** ile **çift tıklayıp açabileceğiniz native bir
 
 ## Kurulum (son kullanıcı)
 
-1. [Releases](../../releases) sayfasından **zip'i indirin** ve çift tıklayarak
-   açın (içinden `E-Devlet E-İmza.app` çıkar).
-2. Çıkan uygulamayı **Uygulamalar (Applications)** klasörüne sürükleyin.
+1. [Releases](../../releases) sayfasından **`.dmg` dosyasını indirin** ve çift
+   tıklayın; bir pencere açılır.
+2. Açılan pencerede **`E-Devlet E-İmza`** simgesini, ortadaki okun gösterdiği gibi
+   yanındaki **Applications** klasörünün üzerine **sürükleyin**.
 3. İlk açılışta macOS "geliştirici doğrulanamadı" diyebilir. Bir kez aşmak için
    **Terminal**'i açıp (`⌘ + Boşluk` → `Terminal` → Enter) şu satırı yapıştırıp
    Enter'a basın:
@@ -73,9 +74,11 @@ Gereksinimler kendiliğinden kurulur (Azul Zulu 11 + 21). Apple Silicon Mac'te:
 ```bash
 make all          # download → icns → package → sign
 make run          # üretilen .app'i aç
+make dmg          # sürükle-bırak yerleşimli .dmg üret (brew install create-dmg gerekir)
 ```
 
-Tek tek hedefler için `make help`.
+DMG arka planı `assets/dmg-background.svg`'den üretilir; düzenleyip `make assets`
+ile yeniden render edebilirsiniz (`brew install librsvg`). Tek tek hedefler için `make help`.
 
 ### Nasıl çalışır
 
@@ -132,5 +135,5 @@ Tek tek hedefler için `make help`.
 
 `.github/workflows/release.yml` elle tetiklenir (`workflow_dispatch`):
 macos-14 (arm64) runner'da `.app` üretir, mimariyi+imzayı doğrular, sürümü
-`<APP_VERSION>_<N>` olarak etiketler (`<N>` otomatik artar) ve zip'i release'e
-ekler.
+`<APP_VERSION>_<N>` olarak etiketler (`<N>` otomatik artar) ve sürükle-bırak
+yerleşimli `.dmg`'yi release'e ekler.
