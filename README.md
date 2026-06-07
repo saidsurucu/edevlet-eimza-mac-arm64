@@ -25,75 +25,37 @@ arm64 Java 11 runtime'ı** ile **çift tıklayıp açabileceğiniz native bir
 
 ---
 
-# 👩‍⚖️ Kolay kurulum — kendiniz derleyin
+# 👩‍⚖️ Kolay kurulum — tek satır
 
-Programcı olmanıza gerek yok; aşağıdaki komutları sırayla **kopyalayıp
-yapıştırmanız** yeterli. Java vb. ayrıca kurmanıza gerek yoktur — gereken Java
-sürümleri build sırasında **otomatik** indirilir.
-
-### 1) Geliştirici araçlarını kurun (bir kez)
-
-**Terminal** uygulamasını açın: klavyede `Command (⌘) + Boşluk`'a basın, açılan
-kutuya **Terminal** yazıp **Enter**'a basın. Sonra şu satırı yapıştırıp
-**Enter**'a basın:
+Programcı olmanıza gerek yok. **Terminal** uygulamasını açın (klavyede
+`Command (⌘) + Boşluk`'a basıp açılan kutuya **Terminal** yazın ve **Enter**'a
+basın), ardından aşağıdaki **tek satırı** kopyalayıp yapıştırın ve **Enter**'a
+basın:
 
 ```bash
-xcode-select --install
+curl -fsSL https://raw.githubusercontent.com/saidsurucu/edevlet-eimza-mac-arm64/main/kur.sh | bash
 ```
 
-Bir pencere açılırsa **"Yükle"**ye basıp bitmesini bekleyin. (Zaten kuruluysa
-"already installed" der; sorun değil.)
+Hepsi bu kadar. Manuel indirme, klasöre girme, Java kurma gibi adımlar **yok**. Bu
+komut gerisini sizin için yapar:
 
-### 2) Kaynak kodu indirin
+- Gerekiyorsa **geliştirici araçlarını** (Xcode komut satırı araçları) kurar — bir
+  pencere açılırsa yalnızca **"Yükle"**ye basıp bitmesini bekleyin, betik
+  kendiliğinden devam eder.
+- **Kaynak kodu** `~/edevlet-eimza-mac-arm64` klasörüne indirir (zaten varsa en
+  güncel sürüme günceller).
+- Gereken **Java** sürümlerini otomatik indirir.
+- Resmî `elektronik-imza.jar`'ı turkiye.gov.tr'den indirir, uygulamayı **derler +
+  imzalar** ve doğrudan **/Applications** klasörüne kurar.
 
-İki yol var; **A yolu** en kolayıdır (tıkla-indir).
+İlk derleme internet hızınıza göre birkaç dakika sürebilir.
 
-**A) ZIP olarak indirin (önerilir)**
-
-1. Bu sayfanın sağ üstündeki yeşil **`< > Code`** düğmesine tıklayın.
-2. Açılan menünün en altındaki **"Download ZIP"**e tıklayın. Dosya
-   **İndirilenler** (Downloads) klasörünüze iner
-   (`edevlet-eimza-mac-arm64-main.zip`).
-3. İnen ZIP dosyasına **çift tıklayın**; yanında `edevlet-eimza-mac-arm64-main`
-   adında bir klasör açılır.
-
-Sonra **Terminal**'i açıp (`⌘ + Boşluk` → `Terminal` → Enter) şu satırı yapıştırın
-ve **Enter**'a basın — bu, az önce açılan klasörün içine girer:
-
-```bash
-cd ~/Downloads/edevlet-eimza-mac-arm64-main
-```
-
-**B) Tek komutla indirin (Terminal'i biliyorsanız)**
-
-```bash
-git clone https://github.com/saidsurucu/edevlet-eimza-mac-arm64.git
-cd edevlet-eimza-mac-arm64
-```
-
-### 3) Derleyin
-
-Klasöre girdikten sonra (yukarıdaki `cd …` adımı) aşağıdaki bloğun **tamamını**
-kopyalayıp Terminal'e yapıştırın, **Enter**'a basın:
-
-```bash
-make jdk           # gömülecek arm64 Java 11'i otomatik indirir
-make jpackage-jdk  # paketleyici JDK'yı otomatik indirir
-make all           # uygulamayı indirir + derler + paketler + imzalar
-```
-
-İlk derleme internet hızınıza göre birkaç dakika sürebilir. Bittiğinde uygulama
-`build/E-Devlet E-İmza.app` olarak hazırdır.
-
-### 4) Uygulamayı Applications'a taşıyın
-
-```bash
-mv "build/E-Devlet E-İmza.app" /Applications/
-```
-
-Artık **Launchpad** veya **Applications** klasöründen çift tıklayarak
-açabilirsiniz. (Kendiniz derleyip imzaladığınız için macOS "geliştirici
+Bittiğinde uygulama **Launchpad** ve **Applications** klasöründe hazırdır; çift
+tıklayarak açabilirsiniz. (Kendiniz derleyip imzaladığınız için macOS "geliştirici
 doğrulanamadı" uyarısı **çıkmaz**; `xattr` ile uğraşmanıza gerek yoktur.)
+
+**Yeni sürüm çıktığında yukarıdaki tek satırı yeniden çalıştırmanız yeterli. En
+güncel sürüm otomatik inecek ve paketlenecek.**
 
 > İsterseniz sürükle-bırak yerleşimli bir `.dmg` de üretebilirsiniz:
 > `brew install create-dmg` sonrası `make dmg`.
